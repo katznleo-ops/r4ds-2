@@ -1,9 +1,15 @@
 ---
 title: "Analyzing US Births and Basketball Recruits"
 author: "Leo Katz"
-format: html
+format:
+  html:
+    theme: styles.scss
+    toc: true
+    toc-title: "Table of Contents"
+    toc-location: right
+    embed-resources: true
 execute:
-    echo: false
+  echo: false
 ---
 
 ```{r}
@@ -11,6 +17,11 @@ execute:
 library(tidyverse)
 library(readxl)
 ```
+
+# US Births Analysis (1994-2014)
+
+An analysis of daily births in the United States from 1994 to 2014, exploring seasonal patterns, holiday effects, and weekday trends using data visualization and regression modeling.
+
 ```{r}
 #| cache: true
 births_tibble <- read_excel("data/us_births_1994_2014.xlsx") |>
@@ -19,9 +30,11 @@ births_tibble <- read_excel("data/us_births_1994_2014.xlsx") |>
     levels = c("Sun", "Mon", "Tues", "Wed", "Thurs", "Fri", "Sat"),
     ordered = TRUE
   ))
-
-glimpse(births_tibble)
 ```
+
+## Monthly and Daily Birth Patterns
+
+This heatmap displays the average number of daily births by month and day of the month. We can observe general seasonal variations, with births peaking in the late summer and early autumn (July through September) and dipping in winter months.
 
 ```{r}
 births_tibble |>
@@ -47,6 +60,10 @@ births_tibble |>
     legend.key.width = unit(1.5, "cm")
   )
 ```
+
+## Holiday Effects: The Christmas Decline
+
+This line chart illustrates the sharp drop in births on Christmas Day (December 25) compared to the surrounding baseline period (December 20–24 and 27–30). The points represent the day of the week, showing that the decline is consistently present across all years, driven by the scheduling of inductions and Cesarean sections.
 
 ```{r}
 christmas_data <- births_tibble |>
@@ -83,29 +100,21 @@ christmas_data |>
   )
 ```
 
-```{r}
-births_model <- lm(births ~ factor(year) + factor(month) + day_of_week, data = births_tibble)
-summary(births_model)$r.squared
-```
+## Daily Residual Birth Deviations
+
+After fitting a linear regression model to adjust for year, month, and day-of-week trends, we calculate the daily residuals to isolate unusual deviations in birth frequency. This visualization highlights the percentage deviation of daily births from the predicted baseline. Major US holidays—such as New Year's Day, Independence Day, Thanksgiving, and Christmas—show significant negative deviations, reflecting medical scheduling preferences.
 
 ```{r}
+births_model <- lm(births ~ factor(year) + factor(month) + day_of_week, data = births_tibble)
 births_adjusted <- births_tibble |>
   mutate(pct_resid = (residuals(births_model) / mean(births)) * 100)
 
-glimpse(births_adjusted)
-```
-
-```{r}
 calendar_resid <- births_adjusted |>
   filter(!(month == 2 & date_of_month == 29)) |>
   group_by(month, date_of_month) |>
   summarize(mean_pct_resid = mean(pct_resid), .groups = "drop") |>
   mutate(date = as.Date(paste(2001, month, date_of_month, sep = "-")))
 
-calendar_resid
-```
-
-```{r}
 calendar_resid |>
   ggplot(aes(x = date, y = mean_pct_resid)) +
   geom_line(color = "#2c3e50", linewidth = 0.8) +
@@ -130,6 +139,24 @@ calendar_resid |>
     axis.text = element_text(size = 9)
   )
 ```
+
+### Largest Daily Birth Deviations from Baseline
+
+To complement the deviation chart, the table below lists the top 10 days of the year with the most significant negative average deviations from the predicted birth baseline (adjusting for long-term year, month, and weekday patterns).
+
+```{r}
+calendar_resid |>
+  arrange(mean_pct_resid) |>
+  mutate(Date = format(date, "%B %d")) |>
+  select(Date, `Average Deviation (%)` = mean_pct_resid) |>
+  head(10) |>
+  knitr::kable(digits = 2)
+```
+
+# High School Recruits & NBA Success
+
+An exploration of high school basketball recruit data from 1998 onwards to understand how recruitment rankings translate to professional success in the NBA.
+
 ```{r}
 #| cache: true
 basketball_tibble <- read_excel("data/nba_recruits.xlsx") |>
@@ -145,11 +172,62 @@ basketball_tibble <- read_excel("data/nba_recruits.xlsx") |>
       levels = c("#1–10", "#11–25", "#26–50", "#51–100", "Outside top 100")
     )
   )
-
-glimpse(basketball_tibble)
 ```
 
+## Career Outcomes by Recruit Group
+
+This proportional bar chart breaks down the career outcomes of top-100 high school recruits by their recruit ranking group. It clearly shows a strong correlation between higher high school rankings (such as the top 10) and the likelihood of reaching the NBA and achieving solid or superstar careers.
+
 ```{r}
+basketball_tibble |>
+  filter(recruit_group != "Outside top 100") |>
+  ggplot(aes(x = fct_rev(recruit_group), fill = tier)) +
+  geom_bar(position = "fill") +
+  coord_flip() +
+  scale_fill_brewer(palette = "RdYlGn", direction = 1) +
+  labs(
+    title = "Career Outcomes by High School Recruit Rank",
+    subtitle = "Top-100 recruits only — all groups include players who never reached the NBA",
+    x = "Recruit group",
+    y = "Proportion",
+    fill = "Career tier",
+    caption = "Source: The Pudding, 2019"
+  ) +
+  theme_minimal()
+```
+
+## Career Quality Distribution
+
+Among recruits who successfully made it to the NBA and accumulated career statistics, we look at the distribution of career Win Shares per 48 Minutes (WS/48). The box plots show substantial overlap across all recruit groups, indicating that while recruit rank predicts the *likelihood* of making the NBA, it has very little predictive power over how productive a player will be once they are in the league.
+
+```{r}
+basketball_tibble |>
+  filter(!is.na(nba_mean_ws48)) |>
+  ggplot(aes(x = nba_mean_ws48, y = recruit_group, fill = recruit_group)) +
+  geom_boxplot(alpha = 0.7, outlier.color = "#e74c3c", show.legend = FALSE) +
+  scale_y_discrete(limits = rev) +
+  scale_fill_viridis_d(option = "viridis", direction = -1) +
+  labs(
+    title = "NBA Win Shares per 48 Minutes by Recruit Group",
+    subtitle = "Distribution of career WS/48 for drafted recruits with NBA statistics",
+    x = "Career Win Shares per 48 Minutes (WS/48)",
+    y = "Recruit Group"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 13),
+    plot.subtitle = element_text(color = "grey40", size = 10, margin = margin(b = 10)),
+    panel.grid.minor = element_blank()
+  )
+```
+
+## Predictability of NBA Success by Recruit Rank
+
+This scatter plot maps individual recruit ranks against their career Wins Above Average (WA), colored by their career success tier. The dashed trend line highlights a flat relationship, showing that within the top-100 ranked recruits, draft ranking has a negligible correlation with long-term NBA career value, though elite outliers like LeBron James and Chris Paul stand out.
+
+```{r}
+#| message: false
+#| warning: false
 basketball_tibble |>
   filter(!is.na(rank), !is.na(top_mean_wa)) |>
   ggplot(aes(x = rank, y = top_mean_wa)) +
@@ -176,3 +254,18 @@ basketball_tibble |>
     panel.grid.minor = element_blank()
   )
 ```
+
+## Top 10 Recruits by NBA Career Win Shares
+
+To see who the top performers were once they reached the league, the table below lists the top 10 ranked recruits sorted by their career average Win Shares per 48 Minutes (`nba_mean_ws48`).
+
+```{r}
+basketball_tibble |>
+  filter(!is.na(nba_mean_ws48)) |>
+  arrange(desc(nba_mean_ws48)) |>
+  select(Name = name, Rank = rank, `Recruit Group` = recruit_group, `WS/48` = nba_mean_ws48) |>
+  head(10) |>
+  knitr::kable(digits = 3)
+```
+
+(Both analyses follow the same data-preparation pattern: read an Excel file, inspect column types, convert categorical variables to ordered factors with the right level sequence. The ordered-factor step is easy to forget — but skipping it produces alphabetically sorted axes that rarely match the data’s natural order.)
