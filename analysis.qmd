@@ -130,4 +130,49 @@ calendar_resid |>
     axis.text = element_text(size = 9)
   )
 ```
+```{r}
+#| cache: true
+basketball_tibble <- read_excel("data/nba_recruits.xlsx") |>
+  mutate(
+    tier = factor(
+      tier,
+      levels = c("Never played", "Brief career", "Solid career", "All-Star level", "Superstar")
+    )
+  ) |>
+  mutate(
+    recruit_group = factor(
+      recruit_group,
+      levels = c("#1–10", "#11–25", "#26–50", "#51–100", "Outside top 100")
+    )
+  )
 
+glimpse(basketball_tibble)
+```
+
+```{r}
+basketball_tibble |>
+  filter(!is.na(rank), !is.na(top_mean_wa)) |>
+  ggplot(aes(x = rank, y = top_mean_wa)) +
+  geom_point(aes(color = tier), alpha = 0.6) +
+  geom_smooth(method = "lm", se = FALSE, color = "black", linetype = "dashed") +
+  geom_text(
+    aes(
+      label = ifelse(name %in% c("LeBron James", "Draymond Green", "Chris Paul", "Donnell Harvey"), name, ""),
+      hjust = ifelse(rank > 50, 1.1, -0.1)
+    ),
+    size = 3
+  ) +
+  labs(
+    title = "High School Recruit Rank vs. Career NBA Performance",
+    subtitle = "Relationship between recruit rank (1-100) and career Wins Above Average (top_mean_wa)",
+    x = "Recruit Rank (1 = Top Recruit)",
+    y = "Career Wins Above Average",
+    color = "Career Success Tier"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 13),
+    plot.subtitle = element_text(color = "grey40", size = 10, margin = margin(b = 10)),
+    panel.grid.minor = element_blank()
+  )
+```
